@@ -3,7 +3,7 @@
 
 **Author**:[Carlos Daniel Jiménez](www.danieljimenezm.com)
 
-**Materials for  Globants-people **
+**Materials for  Globants-people**
 
 This presentation was hosted by **Globant  Data Science Colomia-Perú**
 

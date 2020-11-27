@@ -1,0 +1,163 @@
+---
+title: "Bayesian Machine Learning"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(tidyposterior)
+library(tidytext)
+theme_set(theme_classic())
+```
+
+
+Based on :[Andrew-couch](https://github.com/andrew-couch/Tidy-Tuesday/blob/master/TidyTuesdayModelEval.Rmd)
+
+
+```{r}
+df <- read_csv("../data/WA_Fn-UseC_-Telco-Customer-Churn.csv")
+df <- df %>% drop_na()
+df %>% summary()
+```
+
+```{r}
+df <- df %>% 
+  mutate_at(vars(-MonthlyCharges,-TotalCharges, -tenure), as.factor) %>%
+  mutate_at(vars(tenure, MonthlyCharges, TotalCharges), as.numeric)
+
+df%>%
+  head()
+```
+## Machine Learning
+
+
+```{r}
+set.seed(42)
+tidy_split <- initial_split(df, prop = .8, strata = Churn)
+train_data <- training(tidy_split)
+test_data <- testing(tidy_split)
+tidy_k_folds <- vfold_cv(train_data)
+tidy_rec <- recipe(Churn~., data = train_data) %>% 
+  step_rm(customerID) %>% 
+  step_normalize(all_numeric()) %>% 
+  step_dummy(all_nominal(), -all_outcomes())
+```
+
+
+
+```{r}
+baseline_model <- logistic_reg() %>% 
+  set_mode("classification") %>% 
+  set_engine("glm")
+randomForest_model <- rand_forest() %>% 
+  set_mode("classification") %>% 
+  set_engine("randomForest")
+XGBoost_model <- boost_tree() %>% 
+  set_mode("classification") %>% 
+  set_engine("xgboost")
+
+logistic_res <- fit_resamples(baseline_model, tidy_rec, tidy_k_folds)
+randomForest_res <- fit_resamples(randomForest_model, tidy_rec, tidy_k_folds)
+XGBoost_res <- fit_resamples(XGBoost_model, tidy_rec, tidy_k_folds)
+
+model_res <- tibble(model = list(logistic_res, randomForest_res, XGBoost_res),
+       model_name = c("logistic", "randomForest", "XGBoost"))
+
+map_collect_metrics <- function(model){
+  
+  model %>% 
+    select(id, .metrics) %>% 
+    unnest()
+}
+
+model_res <- model_res %>% 
+  mutate(res = map(model, map_collect_metrics)) %>% 
+  select(model_name, res) %>% 
+  unnest(res)
+```
+
+
+
+```{r}
+model_res %>% 
+  mutate(model_name=reorder_within(model_name,.estimate,.metric))%>%
+  ggplot(aes(x = model_name, y = .estimate, fill=model_name, color=model_name)) + 
+  geom_boxplot(alpha=0.5, show.legend = FALSE) + 
+  facet_wrap(~.metric, scales = "free")+
+  scale_x_reordered()
+```
+
+```{r}
+model_res %>% 
+  ggplot(aes(x = .estimate, color = model_name, fill = model_name)) + 
+  geom_density(alpha = .1) + 
+  facet_wrap(~.metric, scales = "free_y")
+```
+
+
+```{r}
+model_res %>% 
+  group_by(model_name, .metric) %>% 
+  summarise(mean = mean(.estimate))
+```
+
+```{r}
+model_pos <- model_res %>% 
+  filter(.metric == "roc_auc") %>% 
+  select(model_name, id, .estimate) %>% 
+  pivot_wider(names_from = "model_name", values_from = ".estimate")
+
+model_pos
+```
+
+
+
+
+```{r}
+roc_auc_model <- perf_mod(model_pos, seed = 42)
+```
+
+```{r}
+roc_auc_model %>% 
+  tidy() %>% 
+  ggplot(aes(x = model, y = statistic)) + 
+  geom_point(alpha = .2, col = "blue")
+```
+
+
+
+```{r}
+contrast_models(roc_auc_model)
+```
+
+
+```{r}
+contrast_models(roc_auc_model) %>% 
+  ggplot()
+```
+
+
+
+```{r}
+summary(roc_auc_model%>%
+          tidy())%>%
+  mutate(model=fct_reorder(model,mean))%>%
+  ggplot(aes(mean,model))+
+  geom_errorbarh(aes(xmin=lower,xmax=upper))+
+  geom_point(aes(size=mean),show.legend = FALSE)
+```
+
+
+
+```{r}
+summary(roc_auc_model%>%
+          tidy())%>%
+  mutate(diff=upper-lower)%>%
+  arrange(desc(diff))
+```
+

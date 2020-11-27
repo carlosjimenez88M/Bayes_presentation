@@ -17,9 +17,9 @@ Distribution hyperparameters) and uncertainty measure.
 
 ## Repo Distribution
 
-* [Web Scraping]()
-* [Empirical Bayesian Data Analysis]()
-* [Bayesian Machine Learning Model]()
+* [Web Scraping](https://github.com/carlosjimenez88M/Bayes_presentation/blob/master/codes/web_scraping.md)
+* [Empirical Bayesian Data Analysis](https://github.com/carlosjimenez88M/Bayes_presentation/blob/master/codes/Empirical-Analysis.md)
+* [Bayesian Machine Learning Model](https://github.com/carlosjimenez88M/Bayes_presentation/blob/master/codes/BayesianML.md)
 
 
 
